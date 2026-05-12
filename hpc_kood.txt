@@ -1,0 +1,66 @@
+
+module load gdbm/1.23
+module load bcftools
+
+
+bcftools view --include 'FILTER="PASS" & (INFO/SVTYPE="DEL" | INFO/SVTYPE="DUP"| INFO/SVTYPE="INS")' gnomad.v4.1.sv.sites.vcf.gz -Oz -o SV_filtreeritud.vcf.gz
+
+
+Geenide filter
+
+ awk '$7 == "protein_coding"' gencode_v49.all_genes.bad > gencode_v49.protein_coding_genes.bed
+
+
+Lisasin piirkonna
+
+awk 'BEGIN{OFS="\t"} {
+    new_start = $2 - 1000000;
+    new_end = $3 + 1000000;	
+    if (new_start < 0) new_start = 0;
+    print $1, $2, $3, new_start, new_end, $4, $5, $6, $7;
+}' gencode_v49.protein_coding_genes.bed > gencode_v49.protein_coding_genes_1M_proximity.bed
+
+
+Muudan csv failiks
+tr '\t' ',' < gencode_v49.protein_coding_genes_1M_proximity.bed > gencode_v49.protein_coding_genes_1M_proximity.csv
+
+Teen sv faili tsv failiks vajaliku infoga
+
+bcftools query -f "%CHROM\t%POS\t%INFO/END\t%INFO/SVTYPE\t%ALT\t%INFO/ALGORITHMS\t%INFO/SVLEN\t%INFO/AF\t%INFO/AF_nfe" SV_filtreeritud.vcf.gz > SV_filtreeritud.tsv
+
+
+
+
+############### lisa
+
+## sagedustabel
+bcftools query -f '%FILTER\t%INFO/SVTYPE\n' gnomad.v4.1.sv.sites.vcf.gz | \
+awk '
+BEGIN {
+    print "FILTER\tDEL\tDUP\tINS\tOTHER\tROW_TOTAL"
+}
+{
+    filt = ($1 == "PASS") ? "PASS" : "nonPASS"
+    sv   = ($2 == "DEL" || $2 == "DUP" || $2 == "INS") ? $2 : "OTHER"
+    counts[filt, sv]++
+    total[filt]++
+    grand++
+}
+END {
+    for (filt in total)
+        printf "%-10s\t%d\t%d\t%d\t%d\t%d\n",
+            filt,
+            counts[filt,"DEL"]+0,
+            counts[filt,"DUP"]+0,
+            counts[filt,"INS"]+0,
+            counts[filt,"OTHER"]+0,
+            total[filt]
+
+    printf "%-10s\t%d\t%d\t%d\t%d\t%d\n",
+        "COL_TOTAL",
+        counts["PASS","DEL"]   + counts["nonPASS","DEL"],
+        counts["PASS","DUP"]   + counts["nonPASS","DUP"],
+        cuts["PASS","INS"]    + counts["nonPASS","INS"],
+        counts["PASS","OTHER"] + counts["nonPASS","OTHER"],
+        grand
+}

@@ -1,0 +1,659 @@
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(splines)
+library(scales)
+```
+
+
+
+
+```{r}
+load("andmed.Rda")
+
+piir_harvaks = 0.001 ## harvaks lugemise piir
+bp <- log10(5000) ## uus tunnus, et pikkuse 5000 juures katkevust
+
+SVd_valmis = SVd_valmis %>%
+  mutate(haruldane = ifelse(yld_sagedus<piir_harvaks, 1,0),
+         eQTL_any = as.factor(eQTL_any),
+         geenis = as.factor(geenis)) %>% 
+  mutate(log10_pikkus = log10(pikkus)) %>% 
+  rename(eQTL = eQTL_any)%>%
+  mutate(
+    after_bp   = as.numeric(log10_pikkus > bp)
+  ) 
+
+
+
+del_v2 = SVd_valmis %>% filter(tyyp=="DEL")
+ins_v2 = SVd_valmis %>% filter(tyyp!="DEL")
+
+```
+
+
+
+
+```{r}
+load("geenid.Rda")
+```
+
+geenida histogram
+```{r} 
+ggplot(geenid, aes(x = (l6pp - algus + 1))) +
+  geom_histogram() +
+  scale_x_log10(labels = scales::label_number(big.mark = " ")) +
+  labs(x = "Geeni pikkus", y = "Antud pikkusega geenide arv")+
+  theme_classic()
+```
+
+
+Paneb SV-de tuvastusmeetodid väiksematesse grupidesse
+```{r}
+SVd_valmis <- SVd_valmis %>%
+  mutate(uus_meetod = case_when(
+    str_detect(meetod, "depth") & str_detect(meetod, "melt") ~ "katvus ja muster (+ muu)",
+    str_detect(meetod, "depth") & !str_detect(meetod, "melt") ~ "katvus (+ muu)",
+    str_detect(meetod, "melt") & !str_detect(meetod, "depth") ~ "muster (+ muu)",
+    TRUE ~ "ainult muud"
+  ))
+```
+
+
+SV pikkus ja tuvastusmeetod
+```{r}
+ggplot(SVd_valmis, aes(x = pikkus, fill = uus_meetod)) +
+  geom_histogram() +
+  scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  labs(x = "SV pikkus", y = "Antud pikkusega SV-de arv") +
+  theme_classic() +
+  facet_grid(~tyyp) +
+  geom_vline(xintercept = 5000, linetype = "dashed") +
+  theme(legend.position = "bottom")+
+  guides(fill=guide_legend(title="Meetod"))
+
+```
+
+
+eelmine, aga väiksemal skaalal, pole log
+```{r}
+ggplot(SVd_valmis %>% filter(pikkus>4000&pikkus<7000), aes(x = pikkus, fill = uus_meetod)) +
+  geom_histogram() +
+  labs(x = "SV pikkus", y = "Antud pikkusega SV-de arv") +
+  theme_classic() +
+  facet_grid(~tyyp) +
+  geom_vline(xintercept = 5000, linetype = "dashed") +
+  theme(legend.position = "bottom")+
+  guides(fill=guide_legend(title="Meetod"))
+
+```
+
+
+SV sageduste jaotus
+```{r}
+ggplot(SVd_valmis, aes(x = yld_sagedus)) +
+  geom_histogram(bins = 26) +
+  scale_x_log10(labels = scales::label_number(big.mark = " ", drop0trailing = TRUE)) +
+  labs(x = "SV sagedus populatsioonis", y = "Antud sagedusega SV-de arv")+
+  theme_classic()+
+  facet_grid(~tyyp)
+```
+
+
+Dublikatsioonid pannakse insertsioonide alla
+```{r}
+SVd_valmis = SVd_valmis %>% 
+  mutate(tyyp = case_when(
+    tyyp == "DUP" ~ "INS",
+    TRUE ~ tyyp
+  ))
+```
+
+```{r}
+table(SVd_valmis$geenis, SVd_valmis$eQTL)
+```
+
+### deletsioonid
+ pikkus
+```{r}
+ggplot(SVd_valmis %>% filter(tyyp == "DEL"), aes(x = pikkus)) +
+  geom_histogram(bins=30) +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  labs(x = "SV pikkus", y = "Antud pikkusega deletsioonide arv") +
+  theme_classic() +
+  facet_grid(
+  geenis ~ eQTL,
+  labeller = labeller(
+    geenis = c("FALSE" = "Geenis Ei", "TRUE" = "Geenis Jah"),
+      eQTL = c("FALSE" = "eQTL Ei", "TRUE" = "eQTL Jah")
+  )
+) +
+  geom_vline(xintercept = 5000, linetype = "dashed") +
+  theme(legend.position = "bottom")
+```
+
+
+### insertsioonid
+
+pikkus
+```{r}
+ggplot(SVd_valmis%>% filter(tyyp == "INS"), aes(x = pikkus)) +
+  geom_histogram() +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  labs(x = "SV pikkus", y = "Antud pikkusega insertsioonide arv") +
+  theme_classic() +
+  facet_grid(
+  geenis ~ eQTL,
+  labeller = labeller(
+    geenis = c("FALSE" = "Geenis Ei", "TRUE" = "Geenis Jah"),
+      eQTL = c("FALSE" = "eQTL Ei", "TRUE" = "eQTL Jah")
+  )
+) +
+  geom_vline(xintercept = 5000, linetype = "dashed") +
+  theme(legend.position = "bottom")
+```
+
+Andmetes esinev haruldaste osakaal
+```{r}
+pred_data <- SVd_valmis %>%
+  mutate(log10_pikkus = round(log10_pikkus, 1)) %>%
+  group_by(log10_pikkus, tyyp, geenis, eQTL) %>%
+  summarise(
+    P_obs  = mean(haruldane),
+  )
+
+
+ggplot(pred_data, aes(x = log10_pikkus, color = tyyp)) +
+  geom_point(aes(y = P_obs), alpha = 1) +
+  coord_cartesian(xlim = c(1.8, 6)) +
+  geom_vline(xintercept = log10(5000), linetype = "dashed") +
+  scale_x_continuous(
+    breaks = scales::pretty_breaks(),
+    labels = scales::math_format(10^.x)
+  ) +
+  theme_classic() +
+  facet_grid(
+    geenis ~ eQTL,
+    labeller = labeller(
+    geenis = c("FALSE" = "Geenis Ei", "TRUE" = "Geenis Jah"),
+      eQTL = c("FALSE" = "eQTL Ei", "TRUE" = "eQTL Jah")
+  )
+  ) +
+  theme(
+    legend.position = "bottom",
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  labs(x = "SV pikkus", y = "Haruldaste SV-de osakaal", color = "SV tüüp")
+```
+
+
+Eelmine väiksemas vahemikus, pole log
+```{r}
+
+
+pred_data <- SVd_valmis %>%
+  mutate(pikkus_bin = round(pikkus / 100) * 100) %>% 
+  group_by(pikkus_bin, tyyp, geenis, eQTL) %>%
+  summarise(
+    P_obs = mean(haruldane),
+    .groups = "drop"
+  )
+
+ggplot(pred_data, aes(x = pikkus_bin, color = tyyp)) +
+  geom_point(aes(y = P_obs), alpha = 1) +
+  coord_cartesian(xlim = c(4000, 7000), ylim = c(0.5,1)) +
+  geom_vline(xintercept = 5000, linetype = "dashed") +
+  theme_classic() +
+  facet_grid(
+    geenis ~ eQTL,
+    labeller = labeller(
+    geenis = c("FALSE" = "Geenis Ei", "TRUE" = "Geenis Jah"),
+      eQTL = c("FALSE" = "eQTL Ei", "TRUE" = "eQTL Jah")
+  )
+  ) +
+  theme(
+    legend.position = "bottom",
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  labs(x = "SV pikkus", y = "Haruldaste SV-de osakaal", color = "SV tüüp")
+```
+
+
+
+loeb sisse deletsioonide mudeli
+```{r}
+glm_model_del_18 = readRDS("glm_model_del_18.rds")
+```
+
+
+```{r}
+plot_mudel2(del_v2,glm_model_del_18, facet = F, c(0.6,1))
+```
+
+loeb sisse insertsioonide mudeli
+```{r}
+glm_model_ins_18 = readRDS("glm_model_ins_18.rds")
+```
+
+
+kuvab mudeli hinnanguid funktsioon failis plot2_suured_funk...
+```{r}
+plot_mudel2_ME(ins_v2, glm_model_ins_18,F, c(0.4, 1))
+```
+
+
+
+deletsioonidel RR
+```{r}
+plot_mudel2_RR_del(del_v2, glm_model_del_18, F, 1.2, 0.8)
+```
+
+insertsioonidel RR
+```{r}
+plot_mudel2_ME_RR(ins_v2, glm_model_ins_18,FALSE, 1.3,0.7)
+```
+
+
+########tuletise osa
+```{r}
+bspline_deriv_basis <- function(x, knots) { ## arvutab baasifunktsiooni tuletised
+  
+  k <- max(which(knots <= x))
+  k <- k - 1  
+  
+  t <- knots
+  
+  osa4 <- function(s) {
+    s1 <- s+1
+    -3 * (t[s1+4] - x)^2 /
+      ((t[s1+4] - t[s1+1]) * (t[s1+4] - t[s1+2]) * (t[s1+4] - t[s1+3]))
+  }
+  
+  osa3 <- function(s) {
+    s1 <- s+1
+    liidetav1 <- 3 * (t[s1+3] - x)^2 /
+      ((t[s1+3] - t[s1]) * (t[s1+3] - t[s1+1]) * (t[s1+3] - t[s1+2]))
+    liidetav2 <- (3 / (t[s1+4] - t[s1+1])) * (
+      ((x - t[s1+1]) * (t[s1+3] - x)) / ((t[s1+3] - t[s1+1]) * (t[s1+3] - t[s1+2])) +
+      ((t[s1+4] - x) * (x - t[s1+2])) / ((t[s1+4] - t[s1+2]) * (t[s1+3] - t[s1+2]))
+    )
+    liidetav1 - liidetav2
+  }
+  
+  osa2 <- function(s) {
+    s1 <- s+1
+    liidetav1 <- (3 / (t[s1+3] - t[s1])) * (
+      ((x - t[s1]) * (t[s1+2] - x))   / ((t[s1+2] - t[s1])   * (t[s1+2] - t[s1+1])) +
+      ((t[s1+3] - x) * (x - t[s1+1])) / ((t[s1+3] - t[s1+1]) * (t[s1+2] - t[s1+1]))
+    )
+    liidetav2 <- 3 * (x - t[s1+1])^2 /
+      ((t[s1+4] - t[s1+1]) * (t[s1+3] - t[s1+1]) * (t[s1+2] - t[s1+1]))
+    liidetav1 - liidetav2
+  }
+  
+  osa1 <- function(s) {
+    s1 <- s+1
+    3 * (x - t[s1])^2 /
+      ((t[s1+3] - t[s1]) * (t[s1+2] - t[s1]) * (t[s1+1] - t[s1]))
+  }
+  
+  n_basis <- length(knots) - 4
+  basis   <- numeric(n_basis)
+  
+  basis[k-3+1] <- osa4(k-3)
+  basis[k-2+1] <- osa3(k-2)
+  basis[k-1+1] <- osa2(k-1)
+  basis[k  +1] <- osa1(k)
+  
+  return(basis)
+}
+```
+
+
+funktsioon splaini tuletise leidmiseks
+```{r}
+arv_deriv <- function(x, knots, coef, vcov_mat,
+                               geenis = 0, eQTL = 0) {
+  after_bp = as.numeric(x > log10(5000))
+  
+  coef_no_na  <- coef[!is.na(coef)] ## leiab, millised pole NA
+  coef_names  <- names(coef_no_na) ### võtab nimed
+  
+  db <- bspline_deriv_basis(x, knots)[-1] ## arvutab baasi tuletise
+  
+  k_vec <- numeric(length(coef_no_na)) ## leiab, mitt pole NA
+  names(k_vec) <- coef_names
+  
+  for (i in seq_along(coef_names)) { ### vaatab ige kordajat
+    name <- coef_names[i]
+    
+    if (grepl("bs\\(", name)) { ## otsib, millised kordajad on praegu kasutusel 
+    
+      m <- as.numeric(gsub(".*\\)([0-9]+)$", "\\1", name))
+      val <- db[m]
+      
+      if (grepl("geenis", name)) val <- val * geenis 
+      if (grepl("eQTL", name))   val <- val * eQTL
+      if (grepl("after_bp", name)) val <- val * after_bp
+      
+      k_vec[i] <- val
+    }
+  }
+  
+  est <- sum(k_vec * coef_no_na) ## hinnang
+  se  <- sqrt(t(k_vec) %*% vcov_mat %*% k_vec) ## standardviga
+  
+  list(estimate = est, se = se)
+}
+```
+
+
+
+annab deletsioonide splaini tuletise vahemikus
+```{r}
+probs = seq(0, 1, length.out = 15 + 2)[-c(1, 15 + 2)]
+
+knots_full = sort(c(unname(quantile(del_v2$log10_pikkus, probs = probs)), ##sõlmed
+               rep(max(del_v2$log10_pikkus), 4),
+               rep(min(del_v2$log10_pikkus), 4)))
+
+vcov_no_na <- vcov(glm_model_del_18)[!is.na(coef(glm_model_del_18)),
+                                      !is.na(coef(glm_model_del_18))]
+
+xvals <- seq(1.69897, 7.880682, by = 0.005) ## võtab vahemiku
+
+results <- data.frame()
+
+for (g in c(0, 1)) { ## arvutab kõigil kombinatsionnidel
+  for (e in c(0, 1)) {
+    
+    deriv <- c()
+    up <- c()
+    low <- c()
+    
+    for (x in xvals){
+      
+      out <- arv_deriv(### leiab tuletise punktis
+        x,
+        knots = knots_full,
+        coef = coef(glm_model_del_18),
+        vcov_mat = vcov_no_na,
+        geenis = g,
+        eQTL = e
+      )
+      
+      #võtab hiiiangu ja standardvea
+      est <- out$estimate  
+      se  <- out$se[1]
+      
+      deriv <- c(deriv, est)
+      up    <- c(up, est + 1.96 * se)
+      low   <- c(low, est - 1.96 * se)
+    }
+    
+    tmp <- data.frame( ##salvestab
+      x = xvals,
+      derivative = deriv,
+      lower = low,
+      upper = up,
+      geenis = g,
+      eQTL = e
+    )
+    
+    tmp$status <- case_when(  ## määrab, mis tüüpi on
+      tmp$lower > 0 ~ "Positiivne",
+      tmp$upper < 0 ~ "Negatiivne",
+      TRUE ~ "Määramata"
+    )
+    
+    results <- bind_rows(results, tmp)
+  }
+}
+
+results$geenis <- as.logical(results$geenis)
+results$eQTL <- as.logical(results$eQTL)
+
+results$group <- paste0(results$geenis, " + ", results$eQTL)
+```
+
+
+
+
+Joonis deletsioonidele, siin ainult tuletis
+```{r}
+
+results <- results %>%
+  mutate(group = factor(group, levels = c("FALSE + FALSE", "TRUE + FALSE", "FALSE + TRUE", "TRUE + TRUE")))
+pp2 = ggplot(results, aes(x = x, y = 1, fill = status)) +
+  geom_raster() +
+  
+  facet_wrap(
+  ~ group,
+  ncol = 1,
+  strip.position = "right",
+  labeller = labeller(group = function(x) gsub("TRUE", "JAH", gsub("FALSE", "EI   ", x)))
+)+
+  
+  scale_fill_manual(
+    values = c(
+      "Positiivne" = "forestgreen",
+      "Negatiivne" = "red3",
+      "Määramata" = "darkgray"
+    )
+  ) +
+  
+  labs(
+    x = "SV pikkus",
+    y = NULL,
+    fill = "Tuletise väärtus"
+  ) +
+  
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    legend.position = "bottom",
+    
+    strip.placement = "outside",
+    strip.background = element_blank(),
+    strip.text.y.right = element_text(
+  angle = 0,
+  size = 10,
+  hjust = 0
+)
+  )+scale_x_continuous(
+    breaks = c(2, 3, 4, 5, 6),
+    labels = scales::label_math(10^.x)
+  ) 
+```
+
+deletsioonidele joonis mudeli hinnangutele
+```{r}
+pp1 = plot_mudel2(del_v2,glm_model_del_18, facet = F, c(0.6,1))+  
+    theme(axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    legend.position = c(1.05, 0.4))
+```
+
+
+paneb kokku tuletise ja tavalis hinnagute joonise
+```{r, }
+test = pp1/pp2+ 
+  plot_layout(heights = c(3, 1))
+test
+```
+
+
+
+
+insertsioonidele joonis mudeli hinnangutele
+```{r}
+pp1_ins = plot_mudel2_ME(ins_v2,glm_model_ins_18, facet = F, c(0.5,1))+  
+    theme(axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    legend.position = c(1.05, 0.4))
+```
+
+
+arvutab insertsioonidele tuletise
+```{r}
+
+ME_N_mu    <- 2.420
+ME_N_sigma <- 0.1010715
+
+dME_N_dx <- function(x, mu = ME_N_mu, sigma = ME_N_sigma) { ## normaaljaotuse tuletis
+  -(x - mu) / sigma^2 * dnorm(x, mu, sigma)
+}
+
+
+coef_ins     <- coef(glm_model_ins_18) 
+not_na_ins   <- !is.na(coef_ins) ## leiab mitte NA
+vcov_ins     <- vcov(glm_model_ins_18)[not_na_ins, not_na_ins]
+
+
+me_n_name    <- "ME_N"
+me_n_idx_full <- which(names(coef_ins) == me_n_name)   
+me_n_idx_vcov <- which(names(coef_ins[not_na_ins]) == me_n_name) 
+
+knots_full_ins <- sort(c(  ## kõik sõlmed
+  unname(quantile(ins_v2$log10_pikkus, probs = probs)),
+  rep(max(ins_v2$log10_pikkus), 4),
+  rep(min(ins_v2$log10_pikkus), 4)
+))
+
+xvals_ins <- seq(min(ins_v2$log10_pikkus), max(ins_v2$log10_pikkus), by = 0.005) ## liab tueltist miinimummis maksimumini
+
+results_ins <- data.frame()
+
+for (g in c(0, 1)) {
+  for (e in c(0, 1)) {
+    
+    deriv <- c(); up <- c(); low <- c()
+    
+    for (x in xvals_ins) {
+      
+      out <- arv_deriv(
+        x,
+        knots    = knots_full_ins,
+        coef     = coef_ins,
+        vcov_mat = vcov_ins,
+        geenis   = g,
+        eQTL     = e
+      )
+      
+      # arvutab mobiilse elemendi normaaljaotuse tihedusfunktsiooni tuletise punktis x
+      me_n_deriv_val <- dME_N_dx(x)
+      beta_me_n      <- coef_ins[me_n_idx_full]# võtab ME_N kordaja mudelist
+      
+      est_total <- out$estimate + beta_me_n * me_n_deriv_val ## saab täis hinnangu
+      
+      grad_spline  <- out$grad   ## lisab gradient kovariatsiooni arvutamiseks                    
+      
+      cov_spline_mен <- vcov_ins[, me_n_idx_vcov] ##splain-kordajate ja ME_N kordaja vaheline kovariatsioon
+      var_me_n       <- vcov_ins[me_n_idx_vcov, me_n_idx_vcov] ##ME_N kordaja dispersioon
+      
+      var_total <- out$se^2 + ### arvutab täis variatsiooni
+        2 * sum(grad_spline * cov_spline_mен) * me_n_deriv_val +
+        var_me_n * me_n_deriv_val^2
+      
+      se_total <- sqrt(max(var_total, 0))   ## leiab standardvea
+      
+      deriv <- c(deriv, est_total)
+      up    <- c(up,    est_total + 1.96 * se_total)
+      low   <- c(low,   est_total - 1.96 * se_total)
+    }
+    
+    tmp <- data.frame(
+      x          = xvals_ins,
+      derivative = deriv,
+      lower      = low,
+      upper      = up,
+      geenis     = g,
+      eQTL       = e
+    )
+    
+    tmp$status <- case_when( ## määrab, mis tüüpi on tuletis
+      tmp$lower > 0 ~ "Positiivne",
+      tmp$upper < 0 ~ "Negatiivne",
+      TRUE          ~ "Määramata"
+    )
+    
+    results_ins <- bind_rows(results_ins, tmp)
+  }
+}
+
+results_ins$geenis <- as.logical(results_ins$geenis)
+results_ins$eQTL   <- as.logical(results_ins$eQTL)
+results_ins$group  <- paste0(results_ins$geenis, " + ", results_ins$eQTL)
+```
+
+
+
+
+Joonistab lisa tuletise joonise suur ejoonise alla
+```{r}
+results_ins <- results_ins %>%
+  mutate(group = factor(group, levels = c("FALSE + FALSE", "TRUE + FALSE", "FALSE + TRUE", "TRUE + TRUE")))
+
+
+pp2_ins = ggplot(results_ins, aes(x = x, y = 1, fill = status)) +
+  geom_raster() +
+  
+  facet_wrap(
+  ~ group,
+  ncol = 1,
+  strip.position = "right",
+  labeller = labeller(group = function(x) gsub("TRUE", "JAH", gsub("FALSE", "EI   ", x)))
+)+
+  
+  scale_fill_manual(
+    values = c(
+      "Positiivne" = "forestgreen",
+      "Negatiivne" = "red3",
+      "Määramata" = "darkgray"
+    )
+  ) +
+  
+  labs(
+    x = "SV pikkus",
+    y = NULL,
+    fill = "Tuletise väärtus"
+  ) +
+  
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    legend.position = "bottom",
+    
+    strip.placement = "outside",
+    strip.background = element_blank(),
+    strip.text.y.right = element_text(
+  angle = 0,
+  size = 10,
+  hjust = 0
+)
+  )+scale_x_continuous(
+    breaks = c(2, 3, 4, 5, 6),
+    labels = scales::label_math(10^.x)
+  ) 
+```
+
+
+paneb joonised kokku
+```{r, }
+test_ins = pp1_ins/pp2_ins+ 
+  plot_layout(heights = c(3, 1))
+test_ins
+```
+

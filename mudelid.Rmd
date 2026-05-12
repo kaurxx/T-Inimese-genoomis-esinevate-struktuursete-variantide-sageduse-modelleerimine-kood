@@ -1,0 +1,329 @@
+
+
+    
+```{r}
+library(tidyverse)
+library(arrow)
+library(splines)
+```
+
+
+
+
+```{r}
+load("andmed.Rda")
+
+piir_harvaks = 0.001 ## harvaks lugemise piir
+bp <- log10(5000) ## uus tunnus, et pikkuse 5000 juures katkevust
+
+SVd_valmis = SVd_valmis %>%
+  mutate(haruldane = ifelse(yld_sagedus<piir_harvaks, 1,0),
+         eQTL_any = as.factor(eQTL_any),
+         geenis = as.factor(geenis)) %>% 
+  mutate(log10_pikkus = log10(pikkus)) %>% 
+  rename(eQTL = eQTL_any)%>%
+  mutate(
+    after_bp   = as.numeric(log10_pikkus > bp)
+  ) 
+
+
+
+del_v2 = SVd_valmis %>% filter(tyyp=="DEL")
+ins_v2 = SVd_valmis %>% filter(tyyp!="DEL")
+
+```
+
+
+
+
+mudelid deletsioonidele
+
+```{r}
+glm_model_del_6 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 6),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_7 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 7),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_8 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 8),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_9 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 9),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_10 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 10),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_11 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 11),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_12 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 12),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_13 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 13),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_14 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 14),
+  family = binomial,
+  data = del_v2
+)
+
+
+glm_model_del_15 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 15),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_16 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 16),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_17 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 17),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_18 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 18),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_19 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 19),
+  family = binomial,
+  data = del_v2
+)
+
+glm_model_del_20 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 20),
+  family = binomial,
+  data = del_v2
+)
+```
+
+```{r}
+AIC(glm_model_del_6)
+AIC(glm_model_del_7)
+AIC(glm_model_del_8)
+AIC(glm_model_del_9)
+AIC(glm_model_del_10)
+AIC(glm_model_del_11)
+AIC(glm_model_del_12)
+AIC(glm_model_del_13)
+AIC(glm_model_del_14)
+AIC(glm_model_del_15)
+AIC(glm_model_del_16)
+AIC(glm_model_del_17)
+AIC(glm_model_del_18)## oli parim AIC
+AIC(glm_model_del_19)
+AIC(glm_model_del_20)
+
+```
+
+
+Parima salvestamine
+```{r} 
+saveRDS(glm_model_del_18, "glm_model_del_18.rds")
+```
+
+
+
+
+
+
+
+Leiab ALU elementide keskmise ja dispersiooni normaaljaotuse kasutamiseks
+```{r}
+  summary((ins_v2 %>% 
+  filter(str_detect(tyyp2, "ALU")))$log10_pikkus)
+  sd((ins_v2 %>% 
+  filter(str_detect(tyyp2, "ALU")))$log10_pikkus)
+```
+
+
+```{r}
+ins_v2 = ins_v2 %>% mutate(ME_N = dnorm(log10_pikkus, 2.420, 0.1010715))
+
+```
+
+
+
+
+## insertsioonide mudelid
+```{r}
+
+glm_model_ins_6 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 6)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_7 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 7)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_8 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 8)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_9 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 9)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_10 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 10)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_11<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 11)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_12 <- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 12)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_13<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 13)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_14<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 14)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_15<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 15)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_16<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 16)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_17<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 17)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_18<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 18)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_19<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 19)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+glm_model_ins_20<- glm(
+  haruldane ~ 
+    (geenis * eQTL * after_bp) * bs(log10_pikkus, df = 19)+ME_N,
+  family = binomial,
+  data = ins_v2
+)
+
+```
+
+```{r}
+AIC(glm_model_ins_6)
+AIC(glm_model_ins_7)
+AIC(glm_model_ins_8)
+AIC(glm_model_ins_9)
+AIC(glm_model_ins_10)
+AIC(glm_model_ins_11)
+AIC(glm_model_ins_12)
+AIC(glm_model_ins_13)
+AIC(glm_model_ins_14) 
+AIC(glm_model_ins_15) 
+AIC(glm_model_ins_16)
+AIC(glm_model_ins_17) 
+AIC(glm_model_ins_18) ## parim eelnevatest
+AIC(glm_model_ins_19)
+AIC(glm_model_ins_20)
+```
+
+```{r}
+saveRDS(glm_model_ins_18, "glm_model_ins_18.rds")
+```
+
+
