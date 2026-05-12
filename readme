@@ -1,0 +1,18 @@
+
+  Koodi jooksutamiseks on vaja tõmmata lisa failid
+
+Geenide filtreeritud versioon on olemas githubis.
+SV andmed - https://gnomad.broadinstitute.org/downloads#v4-structural-variants
+eQTL - https://gtexportal.org/home/downloads/adult-gtex/qtl (GTEx_Analysis_v10_eQTL.tar)
+
+eQTL andmed  lahti pakkida ja lisada r projekti kausta eraldi kaustana nimega "dataEQTL"
+
+
+
+
+  Faile tuleks jooksutada järgmises järjekorras:
+
+SV_ylekatte_leidmine.R - SV andmete kokku panekuks
+mudelid.Rmd - mudelid, näha on kõiki jooksutatud mudeleid, kuid ülejäänud koodis läheb vaja vaid mudeleid numbriga 18
+plot2_suured_funktsioonid_plotimiseks.R - funktsioonid plotide joonistamiseks järgmises failis
+plotid.Rmd - joonista joonistamiseks ja tuletise leidmine
